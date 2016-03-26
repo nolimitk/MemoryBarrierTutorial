@@ -1,38 +1,46 @@
 #pragma once
 
-#include <windows.h>
-//#include <atomic>
-//#include "NKSingleton.h"
-//#include <strsafe.h>
+#include <atomic>
 
 namespace DoubleCheckedLockingProblem
 {
 	char* p = nullptr;
-	//int g1 = 0;
-	//volatile int g1 = 0;
-	//std::atomic<int> g2 = 0;
-	//volatile int g2 = 0;
-	unsigned int g2 = 0;
+	std::atomic<int> c = 0;
+	std::atomic<int> g1 = 0;
 
 	char* getInstance(void)
 	{
 		if (p == nullptr)
 		{
-			p = new char[128];
-			InterlockedIncrement(&g2);
-			//g2++;
+			if (p == nullptr)
+			{
+				// this is for occuring multi thread problem
+				std::this_thread::yield();
+				p = new char[256];
+				c++;
+			}
+			g1++;
 		}
 		return p;
 	}
 
+	void func(void)
+	{
+		char *p = getInstance();
+
+		std::wstringstream log_stream;
+		log_stream << L"func p " << (void *)p << std::endl;
+		std::wcout << log_stream.str();
+	}
+
 	void run(void)
 	{
-		const static int NUM_THREADS = 100;
+		const static int NUM_THREADS = 1000;
 		std::thread t[NUM_THREADS];
 
 		{
 			std::wstringstream log_stream;
-			log_stream << L"main g2 " << g2 << std::endl;
+			log_stream << L"main g2 " << c << std::endl;
 			std::wcout << log_stream.str();
 		}
 
@@ -40,13 +48,12 @@ namespace DoubleCheckedLockingProblem
 		{
 			t[i] = std::thread([i](void)->void
 				{
+					std::thread::id id = std::this_thread::get_id();
+					std::this_thread::yield();
 					char *p = getInstance();
 
-					//StringCchCopy(p, 128, "abc");
-
 					std::wstringstream log_stream;
-					//log_stream << L"lambda i " << i << " p " << (void *)p << L" g2 " << g2 << std::endl;
-					log_stream << L"lambda i " << i << " p " << (void *)p << std::endl;
+					log_stream << L"lambda thread " << id << " pointer " << (void *)p << std::endl;
 					std::wcout << log_stream.str();
 				}
 			);
@@ -59,7 +66,7 @@ namespace DoubleCheckedLockingProblem
 
 		{
 			std::wstringstream log_stream;
-			log_stream << L"main g2 " << g2 << std::endl;
+			log_stream << L"main g1 " << g1 << " count " << c << std::endl;
 			std::wcout << log_stream.str();
 		}
 	}
